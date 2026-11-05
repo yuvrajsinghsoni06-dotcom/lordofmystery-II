@@ -1,0 +1,191 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+enum Role { MEMBER ADMIN }
+enum PrayerType { PRAYER SUPPORT EMERGENCY }
+enum PrayerStatus { OPEN CLAIMED }
+enum CommissionStatus { ASSIGNED ACTIVE COMPLETED FAILED }
+enum ProjectionStatus { PENDING ACTIVE EXPIRED FAILED }
+enum ListingStatus { OPEN CLOSED WITHDRAWN }
+enum OfferStatus { PENDING ACCEPTED REJECTED WITHDRAWN }
+enum GoodKind { POTION INGREDIENT ARTIFACT OTHER }
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  role         Role     @default(MEMBER)
+  createdAt    DateTime @default(now())
+  profile      MemberProfile?
+  seat         TarotSeat?
+  personas     UserPersona[]
+  prayers      Prayer[]
+  commissions  Commission[]
+  projections  ProjectionSession[]
+  listings     BarterListing[]
+  offers       BarterOffer[]
+  tradesSold   Trade[] @relation("tradeSeller")
+  tradesBought Trade[] @relation("tradeBuyer")
+  posts        IntelligencePost[]
+  sent         WhisperMessage[] @relation("whisperFrom")
+  received     WhisperMessage[] @relation("whisperTo")
+  notifications Notification[]
+  audits       AuditLog[]
+}
+model MemberProfile {
+  userId   String @id
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codename String
+  pathway  String
+  sequence Int    // 9 (weakest) to 0 (strongest)
+  region   String
+  isPublic Boolean @default(true)
+  @@index([sequence])
+}
+model TarotSeat {
+  id         Int    @id // 0..21
+  title      String @unique
+  occupantId String? @unique
+  occupant   User?  @relation(fields: [occupantId], references: [id], onDelete: SetNull)
+  updatedAt  DateTime @updatedAt
+}
+model Persona {
+  id    Int    @id @default(autoincrement())
+  name  String @unique
+  users UserPersona[]
+  prayers Prayer[]
+}
+model UserPersona {
+  userId    String
+  personaId Int
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  persona   Persona @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  @@id([userId, personaId])
+}
+model Prayer {
+  id        String @id @default(cuid())
+  authorId  String
+  author    User   @relation(fields: [authorId], references: [id])
+  personaId Int
+  persona   Persona @relation(fields: [personaId], references: [id])
+  type      PrayerType
+  message   String @db.VarChar(500)
+  status    PrayerStatus @default(OPEN)
+  createdAt DateTime @default(now())
+  commission Commission?
+  @@index([status, createdAt])
+}
+model Commission {
+  id        String @id @default(cuid())
+  prayerId  String @unique // one commission per prayer: blocks duplicate claims
+  prayer    Prayer @relation(fields: [prayerId], references: [id])
+  claimerId String
+  claimer   User   @relation(fields: [claimerId], references: [id])
+  status    CommissionStatus @default(ASSIGNED)
+  createdAt DateTime @default(now())
+  @@index([claimerId, status])
+}
+model Artifact {
+  id        Int    @id @default(autoincrement())
+  name      String
+  grade     Int    // 0..3
+  description String
+  drainRate Float
+  drainUnit String @default("spirituality/hour")
+  available Boolean @default(true)
+  usage     String
+  imageUrl  String?
+  projections ProjectionSession[]
+  @@index([grade])
+}
+model ProjectionSession {
+  id         String @id @default(cuid())
+  userId     String
+  user       User   @relation(fields: [userId], references: [id])
+  artifactId Int
+  artifact   Artifact @relation(fields: [artifactId], references: [id])
+  status     ProjectionStatus @default(ACTIVE)
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  @@index([status, expiresAt])
+}
+model BarterListing {
+  id        String @id @default(cuid())
+  ownerId   String
+  owner     User   @relation(fields: [ownerId], references: [id])
+  kind      GoodKind
+  title     String @db.VarChar(120)
+  details   String @db.VarChar(500)
+  wants     String @db.VarChar(200)
+  status    ListingStatus @default(OPEN)
+  createdAt DateTime @default(now())
+  offers    BarterOffer[]
+  trade     Trade?
+  @@index([status, kind])
+}
+model BarterOffer {
+  id        String @id @default(cuid())
+  listingId String
+  listing   BarterListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  offererId String
+  offerer   User   @relation(fields: [offererId], references: [id])
+  offering  String @db.VarChar(300)
+  status    OfferStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  trade     Trade?
+  @@index([listingId, status])
+}
+model Trade {
+  id        String @id @default(cuid())
+  listingId String @unique
+  listing   BarterListing @relation(fields: [listingId], references: [id])
+  offerId   String @unique
+  offer     BarterOffer @relation(fields: [offerId], references: [id])
+  sellerId  String
+  seller    User @relation("tradeSeller", fields: [sellerId], references: [id])
+  buyerId   String
+  buyer     User @relation("tradeBuyer", fields: [buyerId], references: [id])
+  createdAt DateTime @default(now())
+}
+model IntelligencePost {
+  id        String @id @default(cuid())
+  authorId  String
+  author    User   @relation(fields: [authorId], references: [id])
+  title     String @db.VarChar(120)
+  body      String @db.VarChar(1000)
+  createdAt DateTime @default(now())
+  @@index([createdAt])
+}
+model WhisperMessage {
+  id        String @id @default(cuid())
+  fromId    String
+  from      User   @relation("whisperFrom", fields: [fromId], references: [id])
+  toId      String
+  to        User   @relation("whisperTo", fields: [toId], references: [id])
+  body      String @db.VarChar(1000)
+  createdAt DateTime @default(now())
+  @@index([fromId, toId, createdAt])
+  @@index([toId, createdAt])
+}
+model Notification {
+  id        String @id @default(cuid())
+  userId    String
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  text      String
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId, readAt])
+}
+model AuditLog {
+  id        String @id @default(cuid())
+  actorId   String
+  actor     User   @relation(fields: [actorId], references: [id])
+  action    String
+  target    String
+  createdAt DateTime @default(now())
+  @@index([actorId, createdAt])
+}

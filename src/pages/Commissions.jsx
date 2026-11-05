@@ -1,0 +1,13 @@
+import React,{useState,useEffect} from 'react';import toast from 'react-hot-toast';import {COMMISSIONS} from '../data/mock';import {useApp} from '../contexts/AppContext';import Modal from '../components/Modal';
+const ST=['Open','Assigned','Active','Completed','Failed'];
+export default function Commissions(){const {socket,user}=useApp();const [list,setList]=useState(COMMISSIONS),[sel,setSel]=useState(null),[f,setF]=useState('');
+ useEffect(()=>socket.on('commission',u=>setList(l=>l.map(c=>c.id===u.id&&c.assignee!==user.name?{...c,status:u.status,progress:u.progress}:c))),[socket.on,user.name]);
+ const upd=(id,patch,msg)=>{setList(l=>l.map(c=>c.id===id?{...c,...patch}:c));setSel(s=>s&&s.id===id?{...s,...patch}:s);toast.success(msg);socket.send('commission',{id,...patch})};
+ const shown=list.filter(c=>!f||c.status===f);
+ return <div className="space-y-3"><h1 className="text-2xl text-gold">Commission Database</h1>
+ <div className="flex gap-2 flex-wrap">{['',...ST].map(s=><button key={s} className={`btn ${f===s?'bg-gold/20':''}`} onClick={()=>setF(s)}>{s||'All'}</button>)}</div>
+ <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">{shown.map(c=><div key={c.id} className="panel cursor-pointer" onClick={()=>setSel(c)}><div className="flex justify-between text-xs"><span>{c.id}</span><span className="text-gold">{c.status}</span></div><p className="my-1">{c.title}</p><div className="h-1.5 bg-void"><div className="h-full bg-spectral transition-all" style={{width:c.progress+'%'}}/></div><div className="text-xs mt-1">Reward {c.reward} pounds · Danger {c.danger}/10</div></div>)}</div>
+ <Modal open={!!sel} onClose={()=>setSel(null)} title={sel?.id}>{sel&&<div className="space-y-2 text-sm"><p>{sel.title}</p><p>Status: <b className="text-gold">{sel.status}</b> · Progress {sel.progress}%{sel.assignee&&` · ${sel.assignee}`}</p>
+  <div className="flex gap-2 flex-wrap">{sel.status==='Open'&&<button className="btn" onClick={()=>upd(sel.id,{status:'Assigned',assignee:user.name},'Commission accepted')}>Accept</button>}
+  {sel.status==='Assigned'&&<button className="btn" onClick={()=>upd(sel.id,{status:'Active',progress:Math.max(sel.progress,10)},'Commission claimed')}>Claim</button>}
+  {sel.status==='Active'&&<><button className="btn" onClick={()=>upd(sel.id,{progress:Math.min(100,sel.progress+20)},'Progress updated')}>Advance 20%</button><button className="btn" onClick={()=>upd(sel.id,{status:'Completed',progress:100},'Commission completed')}>Complete</button><button className="btn" onClick={()=>upd(sel.id,{status:'Failed'},'Commission failed')}>Fail</button></>}</div></div>}</Modal></div>}

@@ -1,0 +1,7 @@
+@tailwind base;@tailwind components;@tailwind utilities;
+body{@apply bg-void text-bone font-body}
+h1,h2,h3{@apply font-display tracking-wide}
+.panel{@apply bg-fog/70 backdrop-blur border border-bronze/60 rounded-sm p-4 shadow-[0_0_20px_rgba(123,90,43,.15)]}
+.btn{@apply border border-gold/70 text-gold px-3 py-1.5 font-display text-sm hover:bg-gold/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-spectral disabled:opacity-40}
+.inp{@apply bg-void/70 border border-bronze/60 px-3 py-1.5 text-bone w-full focus:outline-none focus:border-gold}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
